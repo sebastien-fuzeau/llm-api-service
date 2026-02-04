@@ -12,6 +12,9 @@ from typing import AsyncGenerator
 import logging
 from src.logging_config import setup_logging
 
+from fastapi import Request, HTTPException
+from src.rate_limiter import RateLimiter
+
 # Charge les variables d'environnement depuis le fichier .env (si présent)
 load_dotenv()
 
@@ -19,6 +22,10 @@ setup_logging()
 logger = logging.getLogger("api")
 
 app = FastAPI(title="LLM API Service", version="0.1.0")
+
+chat_limiter = RateLimiter(max_requests=30, window_seconds=60)
+stream_limiter = RateLimiter(max_requests=10, window_seconds=60)
+
 
 # On instancie le client une seule fois au démarrage
 llm = LLMClient()
@@ -32,6 +39,14 @@ def health() -> dict:
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
+    client_ip = request.client.host
+
+    if not chat_limiter.allow(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded for /chat",
+        )
+
     logger.info(
         "Chat request received",
         extra={"messages_count": len(req.messages)},
@@ -48,6 +63,18 @@ async def chat(req: ChatRequest) -> ChatResponse:
 
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
+    client_ip = request.client.host
+
+    if not stream_limiter.allow(client_ip):
+        logger.warning(
+            "Streaming rate limit exceeded",
+            extra={"ip": client_ip},
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded for /chat/stream",
+        )
+    
     logger.info(
         "Streaming chat started",
         extra={"messages_count": len(req.messages)},
