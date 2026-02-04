@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.llm_base import BaseLLMClient
+
 import os
 from typing import Any, Dict, List, Optional
 
@@ -10,7 +12,7 @@ import logging
 
 logger = logging.getLogger("llm")
 
-class LLMClient:
+class LLMClient(BaseLLMClient):
     """
     Client minimal pour un endpoint OpenAI-compatible Chat Completions.
     Variables d'environnement utilisées :

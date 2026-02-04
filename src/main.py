@@ -15,6 +15,8 @@ from src.logging_config import setup_logging
 from fastapi import Request, HTTPException
 from src.rate_limiter import RateLimiter
 
+from src.llm_factory import create_llm_client
+
 # Charge les variables d'environnement depuis le fichier .env (si présent)
 load_dotenv()
 
@@ -28,7 +30,7 @@ stream_limiter = RateLimiter(max_requests=10, window_seconds=60)
 
 
 # On instancie le client une seule fois au démarrage
-llm = LLMClient()
+llm = create_llm_client()
 
 
 @app.get("/health")
@@ -38,7 +40,7 @@ def health() -> dict:
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest) -> ChatResponse:
+async def chat(req: ChatRequest, request: Request) -> ChatResponse:
     client_ip = request.client.host
 
     if not chat_limiter.allow(client_ip):
@@ -62,7 +64,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
     return ChatResponse(content=content)
 
 @app.post("/chat/stream")
-async def chat_stream(req: ChatRequest):
+async def chat_stream(req: ChatRequest, request: Request):
     client_ip = request.client.host
 
     if not stream_limiter.allow(client_ip):
