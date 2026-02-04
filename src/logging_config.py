@@ -1,0 +1,17 @@
+import logging
+import sys
+
+
+def setup_logging() -> None:
+    """
+    Configure un logger global structuré, lisible en local
+    et exploitable en prod (JSON-ready).
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format=(
+            "%(asctime)s | %(levelname)s | %(name)s | "
+            "%(message)s"
+        ),
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )

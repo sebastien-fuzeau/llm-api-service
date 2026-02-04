@@ -6,6 +6,10 @@ from typing import Any, Dict, List, Optional
 import httpx
 import json
 
+import logging
+
+logger = logging.getLogger("llm")
+
 class LLMClient:
     """
     Client minimal pour un endpoint OpenAI-compatible Chat Completions.
@@ -34,6 +38,7 @@ class LLMClient:
             raise ValueError("OPENAI_API_KEY manquant (mets-le dans .env)")
 
     async def chat(self, messages: List[Dict[str, Any]]) -> str:
+        logger.info("LLM response received")
         url = f"{self.base_url.rstrip('/')}/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         payload = {"model": self.model, "messages": messages}
@@ -58,6 +63,7 @@ class LLMClient:
         Stream les tokens de réponse un par un depuis l'API LLM.
         Cette méthode est un générateur asynchrone.
         """
+        logger.info("LLM streaming started", extra={"model": self.model})
         url = f"{self.base_url.rstrip('/')}/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
@@ -95,3 +101,4 @@ class LLMClient:
 
                     if "content" in delta:
                         yield delta["content"]
+        logger.info("LLM streaming finished")

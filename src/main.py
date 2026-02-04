@@ -9,8 +9,14 @@ from src.schemas import ChatRequest, ChatResponse
 from fastapi.responses import StreamingResponse
 from typing import AsyncGenerator
 
+import logging
+from src.logging_config import setup_logging
+
 # Charge les variables d'environnement depuis le fichier .env (si présent)
 load_dotenv()
+
+setup_logging()
+logger = logging.getLogger("api")
 
 app = FastAPI(title="LLM API Service", version="0.1.0")
 
@@ -20,22 +26,50 @@ llm = LLMClient()
 
 @app.get("/health")
 def health() -> dict:
+    logger.info("Health check called")
     return {"status": "ok"}
 
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
+    logger.info(
+        "Chat request received",
+        extra={"messages_count": len(req.messages)},
+    )
+
     content = await llm.chat(req.messages)
+
+    logger.info(
+        "Chat response sent",
+        extra={"response_length": len(content)},
+    )
+
     return ChatResponse(content=content)
 
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
-    async def token_generator() -> AsyncGenerator[str, None]:
+    logger.info(
+        "Streaming chat started",
+        extra={"messages_count": len(req.messages)},
+    )
+
+    async def token_generator():
+        token_count = 0
         try:
             async for token in llm.chat_stream(req.messages):
+                token_count += 1
+                logger.debug("Token streamed", extra={"token_index": token_count})
                 yield token
         except Exception as e:
+            logger.error(
+                "Streaming error",
+                extra={"error": str(e)},
+            )
             yield f"\n[ERREUR] {str(e)}\n"
+        finally:
+            logger.info("Streaming chat finished",
+                        extra={"tokens_streamed": token_count},
+                        )
 
     return StreamingResponse(
         token_generator(),
