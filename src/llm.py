@@ -4,7 +4,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 import httpx
-
+import json
 
 class LLMClient:
     """
@@ -52,3 +52,46 @@ class LLMClient:
             data = res.json()
 
         return data["choices"][0]["message"]["content"]
+
+    async def chat_stream(self, messages: List[Dict[str, Any]]):
+        """
+        Stream les tokens de réponse un par un depuis l'API LLM.
+        Cette méthode est un générateur asynchrone.
+        """
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,  # 🔑 activation du streaming côté API
+        }
+
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream(
+                    "POST", url, headers=headers, json=payload
+            ) as response:
+
+                if response.status_code == 401:
+                    raise RuntimeError("401 Unauthorized")
+                if response.status_code == 429:
+                    raise RuntimeError("429 Rate limit / quota")
+                if response.status_code >= 400:
+                    raise RuntimeError(
+                        f"Erreur API {response.status_code}"
+                    )
+
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+
+                    data = line.removeprefix("data: ").strip()
+
+                    if data == "[DONE]":
+                        break
+
+                    chunk = json.loads(data)
+                    delta = chunk["choices"][0]["delta"]
+
+                    if "content" in delta:
+                        yield delta["content"]
